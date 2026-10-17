@@ -1,0 +1,318 @@
+openapi: 3.1.0
+info:
+  title: HireReach AI API
+  version: 0.2.0
+  description: Health, session authentication, and owner-scoped contact import/management. Contact operations are split into contacts.openapi.json for readability.
+servers:
+  - url: /api/v1
+security: []
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: API liveness (also available at /api/health)
+      responses:
+        '200':
+          $ref: '#/components/responses/Healthy'
+  /health/live:
+    get:
+      operationId: getHealthLive
+      summary: Process liveness; independent of database connectivity
+      responses:
+        '200':
+          $ref: '#/components/responses/Healthy'
+  /health/ready:
+    get:
+      operationId: getHealthReady
+      summary: Readiness including a MongoDB ping
+      responses:
+        '200':
+          $ref: '#/components/responses/Healthy'
+        '503':
+          description: Database unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /auth/csrf:
+    get:
+      operationId: getAuthCsrf
+      summary: Create or retrieve a session-bound CSRF token
+      description: Sets an HttpOnly pre-authentication session cookie when one does not exist. Keep the CSRF token in memory only.
+      responses:
+        '200':
+          description: CSRF token and session cookie
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: HttpOnly, SameSite=Lax cookie; Secure and __Host-prefixed in production.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [csrfToken]
+                    properties:
+                      csrfToken:
+                        type: string
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /auth/register:
+    post:
+      operationId: registerUser
+      summary: Register a user
+      description: Email is normalized before storage. Duplicate registration receives the same generic response as a new registration. Registration does not create an authenticated session.
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Generic registration response
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [message]
+                    properties:
+                      message:
+                        type: string
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /auth/login:
+    post:
+      operationId: loginUser
+      summary: Start an authenticated session
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Signed-in safe user profile and rotated session cookie
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: HttpOnly, SameSite=Lax cookie; Secure and __Host-prefixed in production.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /auth/logout:
+    post:
+      operationId: logoutUser
+      summary: Revoke the current session
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '204':
+          description: Session revoked and cookie cleared
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: Expired session cookie.
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      summary: Return the authenticated user's safe profile
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /contacts:
+    $ref: './contacts.openapi.json#/paths/~1contacts'
+  /contacts/statistics:
+    $ref: './contacts.openapi.json#/paths/~1contacts~1statistics'
+  /contacts/{id}:
+    $ref: './contacts.openapi.json#/paths/~1contacts~1{id}'
+  /contact-imports:
+    $ref: './contacts.openapi.json#/paths/~1contact-imports'
+  /contact-imports/{id}:
+    $ref: './contacts.openapi.json#/paths/~1contact-imports~1{id}'
+  /contact-imports/{id}/preview:
+    $ref: './contacts.openapi.json#/paths/~1contact-imports~1{id}~1preview'
+  /contact-imports/{id}/commit:
+    $ref: './contacts.openapi.json#/paths/~1contact-imports~1{id}~1commit'
+  /contact-imports/{id}/rows:
+    $ref: './contacts.openapi.json#/paths/~1contact-imports~1{id}~1rows'
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: hirereach.sid
+      description: Local cookie name; production uses __Host-hirereach.sid.
+  parameters:
+    CsrfToken:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      schema:
+        type: string
+      description: Session-bound token from GET /auth/csrf. Mutations also require the configured Origin.
+  responses:
+    Healthy:
+      description: Service is healthy
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data:
+                type: object
+                required: [status, service]
+                properties:
+                  status:
+                    const: ok
+                  service:
+                    const: hirereach-api
+    InvalidRequest:
+      description: Invalid request fields
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Authentication required or credentials invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Origin or CSRF validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    RateLimited:
+      description: Authentication rate limit exceeded
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    RegisterRequest:
+      type: object
+      additionalProperties: false
+      required: [name, email, password]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        password:
+          type: string
+          minLength: 12
+          maxLength: 128
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        password:
+          type: string
+          minLength: 1
+          maxLength: 128
+    UserResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [user]
+          properties:
+            user:
+              type: object
+              additionalProperties: false
+              required: [id, name, email, createdAt]
+              properties:
+                id:
+                  type: string
+                name:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                createdAt:
+                  type: string
+                  format: date-time
+    Error:
+      type: object
+      required: [error, requestId]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            fields:
+              type: array
+              items:
+                type: object
+                required: [field, message]
+                properties:
+                  field:
+                    type: string
+                  message:
+                    type: string
+        requestId:
+          type: string

@@ -1,0 +1,38 @@
+{
+  "name": "hirereach-ai",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "client",
+    "server",
+    "packages/contracts"
+  ],
+  "engines": {
+    "node": "^22.23.3 || ^24.0.0",
+    "npm": ">=11"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n server,client -c cyan,green \"npm run dev --workspace server\" \"npm run dev --workspace client\"",
+    "dev:server": "npm run dev --workspace server",
+    "dev:client": "npm run dev --workspace client",
+    "build": "npm run build --workspace client",
+    "start": "npm run start --workspace server",
+    "preview": "npm run preview --workspace client",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "check": "npm run lint && npm test && npm run build"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.64.1",
+    "concurrently": "10.0.6",
+    "eslint": "10.13.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "17.13.0",
+    "prettier": "3.9.10",
+    "supertest": "7.3.1",
+    "vitest": "5.0.5"
+  }
+}

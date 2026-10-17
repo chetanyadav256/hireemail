@@ -1,0 +1,24 @@
+{
+  "name": "@hirereach/client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@hirereach/contracts": "0.1.0",
+    "axios": "1.20.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "react-router": "8.4.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.3",
+    "@vitejs/plugin-react": "6.1.2",
+    "tailwindcss": "4.3.3",
+    "vite": "8.3.4"
+  }
+}
